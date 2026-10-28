@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 
 DINOV2_ARCHS = {
     "dinov2_vits14": 384,
@@ -31,7 +32,11 @@ class DINOv2(nn.Module):
         super().__init__()
 
         assert model_name in DINOV2_ARCHS.keys(), f"Unknown model name {model_name}"
-        self.model = torch.hub.load("facebookresearch/dinov2", model_name)
+        local_repo = os.environ.get("DINOV2_REPO")
+        if local_repo:
+            self.model = torch.hub.load(local_repo, model_name, source="local")
+        else:
+            self.model = torch.hub.load("facebookresearch/dinov2", model_name)
         self.num_channels = DINOV2_ARCHS[model_name]
         self.num_trainable_blocks = num_trainable_blocks
         self.norm_layer = norm_layer

@@ -103,6 +103,11 @@ class GSVCitiesDataModule(pl.LightningDataModule):
             "pin_memory": True,
             "shuffle": False,
         }
+        # Bound queued batches; a training batch contains batch_size * K images.
+        if self.num_workers:
+            self.train_loader_config["prefetch_factor"] = 1
+        if self.num_workers // 2:
+            self.valid_loader_config["prefetch_factor"] = 1
 
     def setup(self, stage):
         if stage == "fit":

@@ -1,0 +1,213 @@
+{
+  "train_places": 62514,
+  "train_images": 524701,
+  "train_cities": [
+    "Bangkok",
+    "BuenosAires",
+    "LosAngeles",
+    "MexicoCity",
+    "OSL",
+    "Rome",
+    "Barcelona",
+    "Chicago",
+    "Madrid",
+    "Miami",
+    "Phoenix",
+    "TRT",
+    "Boston",
+    "Lisbon",
+    "Medellin",
+    "Minneapolis",
+    "PRG",
+    "WashingtonDC",
+    "Brussels",
+    "London",
+    "Melbourne",
+    "Osaka",
+    "PRS"
+  ],
+  "validation": {
+    "pitts30k_val": {
+      "images": 17608,
+      "missing": 0,
+      "examples": []
+    },
+    "msls_val": {
+      "images": 19611,
+      "missing": 0,
+      "examples": []
+    },
+    "pitts30k_test": {
+      "images": 16816,
+      "missing": 0,
+      "examples": []
+    }
+  },
+  "train_city_files": {
+    "Bangkok": {
+      "metadata_images": 22268,
+      "files_on_disk": 22271,
+      "raw_metadata_images": 22271,
+      "missing_images": 0,
+      "examples": []
+    },
+    "BuenosAires": {
+      "metadata_images": 8481,
+      "files_on_disk": 8481,
+      "raw_metadata_images": 8481,
+      "missing_images": 0,
+      "examples": []
+    },
+    "LosAngeles": {
+      "metadata_images": 8891,
+      "files_on_disk": 8891,
+      "raw_metadata_images": 8891,
+      "missing_images": 0,
+      "examples": []
+    },
+    "MexicoCity": {
+      "metadata_images": 12801,
+      "files_on_disk": 12801,
+      "raw_metadata_images": 12801,
+      "missing_images": 0,
+      "examples": []
+    },
+    "OSL": {
+      "metadata_images": 8978,
+      "files_on_disk": 9756,
+      "raw_metadata_images": 9756,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Rome": {
+      "metadata_images": 24068,
+      "files_on_disk": 24068,
+      "raw_metadata_images": 24068,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Barcelona": {
+      "metadata_images": 15888,
+      "files_on_disk": 15894,
+      "raw_metadata_images": 15894,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Chicago": {
+      "metadata_images": 34087,
+      "files_on_disk": 34091,
+      "raw_metadata_images": 34091,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Madrid": {
+      "metadata_images": 14554,
+      "files_on_disk": 14554,
+      "raw_metadata_images": 14554,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Miami": {
+      "metadata_images": 43635,
+      "files_on_disk": 43637,
+      "raw_metadata_images": 43637,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Phoenix": {
+      "metadata_images": 36245,
+      "files_on_disk": 36251,
+      "raw_metadata_images": 36251,
+      "missing_images": 0,
+      "examples": []
+    },
+    "TRT": {
+      "metadata_images": 17096,
+      "files_on_disk": 17712,
+      "raw_metadata_images": 17712,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Boston": {
+      "metadata_images": 32616,
+      "files_on_disk": 32616,
+      "raw_metadata_images": 32616,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Lisbon": {
+      "metadata_images": 27030,
+      "files_on_disk": 27045,
+      "raw_metadata_images": 27045,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Medellin": {
+      "metadata_images": 6021,
+      "files_on_disk": 6024,
+      "raw_metadata_images": 6024,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Minneapolis": {
+      "metadata_images": 22303,
+      "files_on_disk": 22326,
+      "raw_metadata_images": 22326,
+      "missing_images": 0,
+      "examples": []
+    },
+    "PRG": {
+      "metadata_images": 15300,
+      "files_on_disk": 17590,
+      "raw_metadata_images": 17590,
+      "missing_images": 0,
+      "examples": []
+    },
+    "WashingtonDC": {
+      "metadata_images": 11545,
+      "files_on_disk": 11545,
+      "raw_metadata_images": 11545,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Brussels": {
+      "metadata_images": 14168,
+      "files_on_disk": 14171,
+      "raw_metadata_images": 14171,
+      "missing_images": 0,
+      "examples": []
+    },
+    "London": {
+      "metadata_images": 58672,
+      "files_on_disk": 58672,
+      "raw_metadata_images": 58672,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Melbourne": {
+      "metadata_images": 28539,
+      "files_on_disk": 28542,
+      "raw_metadata_images": 28542,
+      "missing_images": 0,
+      "examples": []
+    },
+    "Osaka": {
+      "metadata_images": 22605,
+      "files_on_disk": 22605,
+      "raw_metadata_images": 22605,
+      "missing_images": 0,
+      "examples": []
+    },
+    "PRS": {
+      "metadata_images": 38910,
+      "files_on_disk": 39963,
+      "raw_metadata_images": 39963,
+      "missing_images": 0,
+      "examples": []
+    }
+  },
+  "training_missing_images": 0,
+  "gsv_cities_root": "/home/admin123/github/WORKSPACE/dataset/gsv-cities",
+  "pittsburgh_root": "/home/admin123/github/datasets/Pittsburgh",
+  "msls_root": "/home/admin123/github/datasets/MSLS"
+}

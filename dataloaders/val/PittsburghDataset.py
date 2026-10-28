@@ -2,23 +2,12 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
+import os
 
-DATASET_ROOT = "./Pittsburgh250k/"
+DATASET_ROOT = os.path.join(os.environ.get("PITTSBURGH_ROOT", "./Pittsburgh250k"), "")
 GT_ROOT = (
     "./datasets/" # BECAREFUL, this is the ground truth that comes with GSV-Cities
 )
-
-path_obj = Path(DATASET_ROOT)
-if not path_obj.exists():
-    raise Exception(
-        f"Please make sure the path {DATASET_ROOT} to Pittsburgh dataset is correct"
-    )
-
-if not path_obj.joinpath("ref") or not path_obj.joinpath("query"):
-    raise Exception(
-        f"Please make sure the directories query and ref are situated in the directory {DATASET_ROOT}"
-    )
-
 
 class PittsburghDataset(Dataset):
     def __init__(self, which_ds="pitts30k_test", input_transform=None):

@@ -2,8 +2,9 @@ from torch.utils.data import Dataset
 
 import numpy as np
 from PIL import Image
+import os
 
-DATASET_ROOT = "./Mapillary_Street_Level_Sequences/"
+DATASET_ROOT = os.path.join(os.environ.get("MSLS_ROOT", "./Mapillary_Street_Level_Sequences"), "")
 GT_ROOT = (
     "./datasets/" # BECAREFUL, this is the ground truth that comes with GSV-Cities
 )

@@ -1,5 +1,7 @@
 import pytorch_lightning as pl
 import torch
+import numpy as np
+from pathlib import Path
 from torch.optim import lr_scheduler, optimizer
 import wandb
 from torch.utils.data import Subset
@@ -305,17 +307,26 @@ class VPRModel(pl.LightningModule):
 
     # For validation, we will also iterate step by step over the validation set
     # this is the way Pytorch Lghtning is made. All about modularity, folks.
-    def validation_step(self, batch, batch_idx, dataloader_idx=None):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         places, _ = batch
-        descriptors = self(places)
-        self.val_outputs[dataloader_idx].append(descriptors.detach().cpu())
-        return descriptors.detach().cpu()
+        descriptors = self(places).detach().cpu().numpy()
+        if self.val_outputs[dataloader_idx] is None:
+            self.val_outputs[dataloader_idx] = np.memmap(
+                self.val_paths[dataloader_idx], mode="w+", dtype=descriptors.dtype,
+                shape=(len(self.trainer.datamodule.val_datasets[dataloader_idx]), descriptors.shape[1]))
+        start = self.val_offsets[dataloader_idx]
+        stop = start + len(descriptors)
+        self.val_outputs[dataloader_idx][start:stop] = descriptors
+        self.val_offsets[dataloader_idx] = stop
+        # Do not return or retain batches of full-dimensional CPU descriptors.
 
     def on_validation_epoch_start(self):
-        # reset the outputs list
-        self.val_outputs = [
-            [] for _ in range(len(self.trainer.datamodule.val_datasets))
-        ]
+        folder = Path(self.trainer.log_dir) / "validation_features"
+        folder.mkdir(parents=True, exist_ok=True)
+        count = len(self.trainer.datamodule.val_datasets)
+        self.val_outputs = [None] * count
+        self.val_offsets = [0] * count
+        self.val_paths = [folder / f"dataset_{i}.dat" for i in range(count)]
 
     def on_validation_epoch_end(self):
         """this return descriptors in their order
@@ -326,15 +337,13 @@ class VPRModel(pl.LightningModule):
         val_step_outputs = self.val_outputs
 
         dm = self.trainer.datamodule
-        # The following line is a hack: if we have only one validation set, then
-        # we need to put the outputs in a list (Pytorch Lightning does not do it presently)
-        if len(dm.val_datasets) == 1:  # we need to put the outputs in a list
-            val_step_outputs = [val_step_outputs]
-
         for i, (val_set_name, val_dataset) in enumerate(
             zip(dm.val_set_names, dm.val_datasets)
         ):
-            feats = torch.concat(val_step_outputs[i], dim=0)
+            feats = val_step_outputs[i]
+            if feats is None or self.val_offsets[i] != len(val_dataset):
+                raise RuntimeError(f"Incomplete validation features for {val_set_name}")
+            feats.flush()
 
             if "pitts" in val_set_name:
                 # split to ref and queries
@@ -358,8 +367,12 @@ class VPRModel(pl.LightningModule):
                 print_results=True,
                 dataset_name=val_set_name,
                 faiss_gpu=self.faiss_gpu,
+                retrieval_batch_size=256,
             )
             del r_list, q_list, feats, num_references, positives
+            val_step_outputs[i]._mmap.close()
+            val_step_outputs[i] = None
+            self.val_paths[i].unlink()
 
             self.log(f"{val_set_name}/R1", pitts_dict[1], prog_bar=False, logger=True)
             self.log(f"{val_set_name}/R5", pitts_dict[5], prog_bar=False, logger=True)

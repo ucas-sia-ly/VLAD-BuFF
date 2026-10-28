@@ -127,6 +127,10 @@ def parse_args():
         description="Eval VPR model",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("--features_path", type=str, default=None,
+                        help="Optional float64 memory-mapped feature matrix to bound RAM use")
+    parser.add_argument("--bounded_memory", action="store_true",
+                        help="Float64 disk-backed PCA with a symmetric covariance solver")
     parser.add_argument(
         "--dataset_name", type=str, default="gsv_cities", help="Dataset"
     )
@@ -388,6 +392,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    from utils.resource_budget import configure_cuda_budget
+    configure_cuda_budget(args.device)
 
     if args.pl_seed:
         pl.seed_everything(seed=int(args.seed), workers=True)
@@ -515,7 +521,11 @@ if __name__ == "__main__":
     with torch.no_grad():
         tqdm.write("====> Extracting Features")
 
-        dbFeat = np.empty((len(data_loader.sampler), pool_size))
+        if args.features_path:
+            dbFeat = np.memmap(args.features_path, dtype=np.float64, mode="w+",
+                               shape=(len(data_loader.sampler), pool_size))
+        else:
+            dbFeat = np.empty((len(data_loader.sampler), pool_size))
         print("Compute", len(dbFeat), "features")
         total_input = 0
         for iteration, (input_data, indices) in enumerate(tqdm(data_loader)):
@@ -549,7 +559,14 @@ if __name__ == "__main__":
     start_time = time.time()
 
     print("NOTE: This process may take some time depending on the size of the data.")
-    u, lams, mu = pca(dbFeat, num_pcs=max_num_pcs)
+    if args.bounded_memory:
+        from utils.bounded_pca import disk_pca
+        u, lams, mu = disk_pca(dbFeat, num_pcs=max_num_pcs)
+    else:
+        u, lams, mu = pca(dbFeat, num_pcs=max_num_pcs)
+    if isinstance(dbFeat, np.memmap):
+        dbFeat.flush()
+    del dbFeat
 
     # End the timer after PCA computation
     end_time = time.time()
@@ -564,9 +581,12 @@ if __name__ == "__main__":
         current_lams = lams[:num_pc]
 
         # Perform the whitening manually
-        current_u_whitened = np.matmul(
-            current_u, np.diag(1.0 / np.sqrt(current_lams + 1e-9))
-        )
+        if args.bounded_memory:
+            from utils.bounded_pca import disk_whiten
+            current_u_whitened = disk_whiten(current_u, current_lams,
+                                             args.features_path + f".whitened{num_pc}")
+        else:
+            current_u_whitened = current_u * (1.0 / np.sqrt(current_lams + 1e-9))
 
         # Compute the bias term (mean adjustment for whitening)
         utmu = np.matmul(current_u_whitened.T, mu)

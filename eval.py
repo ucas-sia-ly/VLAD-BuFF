@@ -11,18 +11,9 @@ from collections import OrderedDict
 from vpr_model import VPRModel
 from utils.validation import get_validation_recalls
 import os
-
-# Dataloader
-from dataloaders.val.NordlandDataset import NordlandDataset
-from dataloaders.val.MapillaryDataset import MSLS
-from dataloaders.val.MapillaryTestDataset import MSLSTest
-from dataloaders.val.PittsburghDataset import PittsburghDataset
-from dataloaders.val.SPEDDataset import SPEDDataset
-from dataloaders.val.StluciaDataset import StluciaDataset
-from dataloaders.val.Tokyo247Dataset import Tokyo247Dataset
-from dataloaders.val.AmstertimeDataset import AmstertimeDataset
-from dataloaders.val.BaiduDataset import BaiduDataset
-from dataloaders.val.SfsmDataset import SfsmDataset
+import json
+import hashlib
+from pathlib import Path
 
 VAL_DATASETS = [
     "MSLS",
@@ -55,38 +46,57 @@ def input_transform(image_size=None):
         return T.Compose([T.ToTensor(), T.Normalize(mean=MEAN, std=STD)])
 
 
-def get_val_dataset(dataset_name, image_size=None):
+def get_val_dataset(dataset_name, image_size=None, manifest_dir=None):
+    manifest_dir = manifest_dir or os.environ.get("VLADBUFF_MANIFEST_DIR")
+    default_manifests = Path(__file__).resolve().parent / "logs/active_dataset_manifests"
+    if manifest_dir is None and default_manifests.is_dir():
+        manifest_dir = default_manifests
+    if manifest_dir:
+        from dataloaders.val.ManifestDataset import ManifestDataset
+        manifest_path = Path(manifest_dir) / f"{dataset_name.lower()}.json"
+        ds = ManifestDataset(manifest_path, input_transform(image_size))
+        return ds, ds.num_references, ds.num_queries, ds.ground_truth
     dataset_name = dataset_name.lower()
     transform = input_transform(image_size=image_size)
 
     if "nordland" in dataset_name:
+        from dataloaders.val.NordlandDataset import NordlandDataset
         ds = NordlandDataset(input_transform=transform)
 
     elif "msls_test" in dataset_name:
+        from dataloaders.val.MapillaryTestDataset import MSLSTest
         ds = MSLSTest(input_transform=transform)
 
     elif "msls" in dataset_name:
+        from dataloaders.val.MapillaryDataset import MSLS
         ds = MSLS(input_transform=transform)
 
     elif "pitts" in dataset_name:
+        from dataloaders.val.PittsburghDataset import PittsburghDataset
         ds = PittsburghDataset(which_ds=dataset_name, input_transform=transform)
 
     elif "sped" in dataset_name:
+        from dataloaders.val.SPEDDataset import SPEDDataset
         ds = SPEDDataset(input_transform=transform)
 
     elif "st_lucia" in dataset_name:
+        from dataloaders.val.StluciaDataset import StluciaDataset
         ds = StluciaDataset(input_transform=transform)
 
     elif "tokyo247" in dataset_name:
+        from dataloaders.val.Tokyo247Dataset import Tokyo247Dataset
         ds = Tokyo247Dataset(input_transform=transform)
 
     elif "sfsm" in dataset_name:
+        from dataloaders.val.SfsmDataset import SfsmDataset
         ds = SfsmDataset(input_transform=transform)
 
     elif "amstertime" in dataset_name:
+        from dataloaders.val.AmstertimeDataset import AmstertimeDataset
         ds = AmstertimeDataset(input_transform=transform)
 
     elif "baidu" in dataset_name:
+        from dataloaders.val.BaiduDataset import BaiduDataset
         ds = BaiduDataset(input_transform=transform)
 
     else:
@@ -103,8 +113,10 @@ def get_pca_encoding(model, vlad_encoding):
     return pca_encoding
 
 
-def get_descriptors(model, dataloader):
+def get_descriptors(model, dataloader, features_path=None):
     descriptors = []
+    mapped = None
+    offset = 0
     with torch.no_grad():
         with torch.autocast(device_type=args.device, dtype=torch.float16):
             for batch in tqdm(dataloader, "Calculating descritptors..."):
@@ -131,9 +143,23 @@ def get_descriptors(model, dataloader):
                     if args.wpca:
                         vlad_encoding = get_pca_encoding(model, vlad_encoding)
                     output = vlad_encoding.cpu()  # .detach().cpu().numpy()
-                descriptors.append(output)
+                if features_path:
+                    values = output.float().numpy()
+                    if mapped is None:
+                        Path(features_path).parent.mkdir(parents=True, exist_ok=True)
+                        mapped = np.memmap(features_path, mode="w+", dtype=np.float32,
+                                           shape=(len(dataloader.dataset), values.shape[1]))
+                    mapped[offset:offset + len(values)] = values
+                    offset += len(values)
+                else:
+                    descriptors.append(output)
                 del imgs
 
+    if features_path:
+        if mapped is None or offset != len(dataloader.dataset):
+            raise RuntimeError("Incomplete evaluation features")
+        mapped.flush()
+        return mapped
     return torch.cat(descriptors)
 
 
@@ -202,6 +228,8 @@ def parse_args():
         description="Eval VPR model",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("--dataset_manifest_dir", type=str, default=None,
+                        help="Audited manifests; preserve author image order and ground truth")
     parser.add_argument(
         "--dataset_name", type=str, default="gsv_cities", help="Dataset"
     )
@@ -471,6 +499,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    from utils.resource_budget import configure_cuda_budget
+    configure_cuda_budget(args.device)
 
     # Check: dont have wpca for systems having fc layer after NV layer
     if args.useFC:
@@ -485,6 +515,10 @@ if __name__ == "__main__":
         pl.seed_everything(seed=int(args.seed), workers=True)
 
     model = load_model()
+    checkpoint_hash = hashlib.sha256()
+    with open(args.resume_train, 'rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            checkpoint_hash.update(block)
     print(f"<=======backbone_arch: {args.backbone}========>")
     print(f"<=======aggregation: {args.aggregation}========>")
     print(f"<=======args: {args}========>")
@@ -501,7 +535,7 @@ if __name__ == "__main__":
         print(f"<=======expName: {args.expName}========>")
 
         val_dataset, num_references, num_queries, ground_truth = get_val_dataset(
-            val_name, args.resize
+            val_name, args.resize, args.dataset_manifest_dir
         )
         val_loader = DataLoader(
             val_dataset,
@@ -509,9 +543,11 @@ if __name__ == "__main__":
             batch_size=args.batch_size,
             shuffle=False,
             pin_memory=True,
+            **({"prefetch_factor": 1} if args.num_workers else {}),
         )
         print(f"Evaluating on {val_name}")
-        descriptors = get_descriptors(model, val_loader)
+        features_path = Path(args.save_dir) / "working_features" / f"{val_name}.dat"
+        descriptors = get_descriptors(model, val_loader, features_path=features_path)
 
         print(f"Descriptor dimension {descriptors.shape[1]}")
         r_list = descriptors[:num_references]
@@ -523,15 +559,17 @@ if __name__ == "__main__":
         distances, predictions, preds = get_validation_recalls(
             r_list=r_list,
             q_list=q_list,
-            k_values=[1, 5, 10],  # , 15, 20, 25],
+            k_values=[1, 5, 10] if ground_truth is not None else [1, 5, 10, 25],
             gt=ground_truth,
             print_results=True,
             dataset_name=val_name,
             faiss_gpu=False,
             testing=False,
+            retrieval_batch_size=256,
         )
 
         if args.store_eval_output:
+            os.makedirs(args.save_dir, exist_ok=True)
             if args.resume_train is not None:
                 model_ckpt_name = os.path.basename(args.resume_train)
             else:
@@ -542,8 +580,35 @@ if __name__ == "__main__":
                 ),
                 predictions=predictions,
                 distances=distances,
+                query_ids=np.asarray(getattr(val_dataset, "query_ids", [])),
+                reference_ids=np.asarray(getattr(val_dataset, "reference_ids", [])),
             )
-        if not args.no_wandb:
+            metrics_path = Path(args.save_dir) / (model_ckpt_name + "_" + val_name + "_metrics.json")
+            with open(metrics_path.with_suffix('.tmp'), "w") as f:
+                json.dump({
+                    "checkpoint": os.path.abspath(args.resume_train),
+                    "checkpoint_sha256": checkpoint_hash.hexdigest(),
+                    "dataset": val_name,
+                    "num_references": num_references,
+                    "num_queries": num_queries,
+                    "descriptor_dim": descriptors.shape[1],
+                    "resize": args.resize,
+                    "recalls": None if preds is None else {str(k): float(v) for k, v in preds.items()},
+                    "ground_truth_available": ground_truth is not None,
+                    "recall_denominator": num_queries if ground_truth is not None else None,
+                    "queries_without_positives": None if ground_truth is None else sum(len(v) == 0 for v in ground_truth),
+                    "protocol": getattr(val_dataset, "protocol", {"name": "legacy author loader"}),
+                    "protocol_fingerprint": getattr(val_dataset, "protocol_fingerprint", None),
+                    "manifest_sha256": getattr(val_dataset, "manifest_sha256", None),
+                    "manifest_path": str(getattr(val_dataset, "manifest_path", "")),
+                    "inference_precision": "float16-autocast",
+                    "retrieval": "CPU IndexFlatL2 float32; chunks of 256",
+                    "preprocessing": "one descriptor per image; bilinear Resize(H,W), ImageNet normalization",
+                }, f, indent=2)
+            metrics_path.with_suffix('.tmp').replace(metrics_path)
+            if ground_truth is None and hasattr(val_dataset, "save_predictions"):
+                val_dataset.save_predictions(predictions, str(Path(args.save_dir) / f"{val_name}_top25.txt"))
+        if not args.no_wandb and preds is not None:
             metrics = {
                 f"{val_name}/R@1VsDim": {
                     "Recall@1": preds[1],
@@ -555,4 +620,7 @@ if __name__ == "__main__":
             metrics = {f"{val_name}/Recall@{k}": v for k, v in preds.items()}
             wandb.log(metrics)
 
+        del r_list, q_list
+        descriptors._mmap.close()
+        features_path.unlink()
         del descriptors

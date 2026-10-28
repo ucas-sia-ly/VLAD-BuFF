@@ -1,0 +1,16 @@
+{
+  "memory_max_gib": 10,
+  "memory_high_gib": 9,
+  "swap_max_bytes": 0,
+  "torch_allocator_max_gib": 38,
+  "device_gpu_stop_gib": 44,
+  "system_ram_reserve_gib": 4,
+  "peak_cgroup_gib": 9.00048828125,
+  "peak_device_gpu_gib": 5.3203125,
+  "minimum_available_ram_gib": 15.446159362792969,
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/vladbuff-validation-capacity-3.scope",
+  "status": "completed",
+  "updated": 1793182035.2542248,
+  "exit_code": 0,
+  "ended": 1793182036.2555351
+}

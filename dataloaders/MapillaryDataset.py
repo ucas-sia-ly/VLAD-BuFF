@@ -10,20 +10,13 @@ import os
 # I hardcoded the groundtruth for image to image evaluation, otherwise it would take ages to run the groundtruth script at each epoch.
 
 
-DATASET_ROOT = "./Mapillary_Street_Level_Sequences/"
-
-path_obj = Path(DATASET_ROOT)
-if not path_obj.exists():
-    raise Exception("Please make sure the path to mapillary_sls dataset is correct")
-
-if not path_obj.joinpath("train_val"):
-    raise Exception(
-        f"Please make sure the directory train_val from mapillary_sls dataset is situated in the directory {DATASET_ROOT}"
-    )
+DATASET_ROOT = os.path.join(os.environ.get("MSLS_ROOT", "./Mapillary_Street_Level_Sequences"), "")
 
 
 class MSLS(Dataset):
     def __init__(self, input_transform=None):
+        if not Path(DATASET_ROOT, "train_val").is_dir():
+            raise FileNotFoundError(f"MSLS train_val not found under {DATASET_ROOT}. Set MSLS_ROOT.")
         self.input_transform = input_transform
         
         self.dbImages = np.load("./datasets/msls_val/msls_val_dbImages.npy")

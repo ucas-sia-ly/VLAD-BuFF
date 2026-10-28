@@ -61,6 +61,8 @@ def parse_args():
     )
     parser.add_argument("--norm_layer", type=bool, default=True, help="Use norm layer")
     parser.add_argument("--epochs", type=int, default=4, help="number of epochs")
+    parser.add_argument("--max_steps", type=int, default=-1, help="Optional bound for a diagnostic run")
+    parser.add_argument("--resume_train", type=str, default=None, help="Resume a complete Lightning checkpoint")
 
     # Arguments for helper.py (aggregation configuration)
     parser.add_argument(
@@ -296,9 +298,13 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    from utils.resource_budget import configure_cuda_budget
+    configure_cuda_budget(args.device)
 
     # no wpca during training
     assert args.wpca == False
+    if args.resume_train:
+        args.initialize_clusters = False
 
     if not args.no_wandb:
         dataset_name = args.dataset_name.lower()[:4]
@@ -385,10 +391,14 @@ if __name__ == "__main__":
         filename=f"{model.encoder_arch}"
         + "_({epoch:02d})_R1[{pitts30k_val/R1:.4f}]_R5[{pitts30k_val/R5:.4f}]",
         auto_insert_metric_name=False,
-        save_weights_only=True,
+        save_weights_only=False,
         save_top_k=args.epochs,
         save_last=True,
         mode="max",
+    )
+    recovery_cb = pl.callbacks.ModelCheckpoint(
+        filename="recovery-step{step}", every_n_train_steps=500,
+        save_top_k=1, save_weights_only=False, save_on_train_epoch_end=False,
     )
 
     # ------------------
@@ -401,9 +411,11 @@ if __name__ == "__main__":
         "num_sanity_val_steps": 0,  # runs a validation step before stating training
         "precision": args.precision,  # we use half precision to reduce  memory usage
         "max_epochs": args.epochs,
+        "max_steps": args.max_steps,
+        "logger": pl.loggers.CSVLogger(args.save_dir, name="lightning_logs"),
         "check_val_every_n_epoch": 1,  # run validation every epoch
         "callbacks": [
-            checkpoint_cb
+            checkpoint_cb, recovery_cb, pl.callbacks.LearningRateMonitor(logging_interval="step")
         ],  # we only run the checkpointing callback (you can add more)
         "reload_dataloaders_every_n_epochs": 1,  # we reload the dataset to shuffle the order
         "log_every_n_steps": 20,
@@ -415,4 +427,4 @@ if __name__ == "__main__":
     trainer = pl.Trainer(**trainer_params)
 
     # we call the trainer, we give it the model and the datamodule
-    trainer.fit(model=model, datamodule=datamodule)
+    trainer.fit(model=model, datamodule=datamodule, ckpt_path=args.resume_train)

@@ -18,6 +18,8 @@ For more details, refer to the paper at [arXiv](https://arxiv.org/abs/2409.19293
 
 ## Setup
 
+For the local dataset layout, audited protocols, resource-limited evaluation, and updated results, see [本机数据适配与复评说明](reproduction/dataset-protocols.zh-CN.md).
+
 The code has been tested on PyTorch 2.1.0 with CUDA 12.1 and Xformers. To create a ready-to-run environment, use the following command:
 ```bash
 conda env create -f environment.yml
